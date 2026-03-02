@@ -16,7 +16,7 @@ class TestFP8CacheKernels:
     def test_round_trip_error(self, device):
         """Round-trip quantize/dequantize error < 0.05 max abs."""
         try:
-            from exllamav3_opt._ext import quant_fp8_cache_paged, dequant_fp8_cache_paged
+            from exllamav3_opt._ext import dequant_fp8_cache_paged, quant_fp8_cache_paged
         except ImportError:
             pytest.skip("CUDA extension not compiled")
 
@@ -82,7 +82,7 @@ class TestFP8CacheKernels:
     def test_zero_values(self, device):
         """FP8 handles zero values correctly."""
         try:
-            from exllamav3_opt._ext import quant_fp8_cache_paged, dequant_fp8_cache_paged
+            from exllamav3_opt._ext import dequant_fp8_cache_paged, quant_fp8_cache_paged
         except ImportError:
             pytest.skip("CUDA extension not compiled")
 

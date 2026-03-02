@@ -21,10 +21,10 @@ import torch
 
 if TYPE_CHECKING:
     from exllamav3.cache.cache import Cache
-    from exllamav3.model.model import Model
-    from exllamav3.tokenizer.tokenizer import Tokenizer
-    from exllamav3.tokenizer import MMEmbedding
     from exllamav3.generator.sampler import Sampler
+    from exllamav3.model.model import Model
+    from exllamav3.tokenizer import MMEmbedding
+    from exllamav3.tokenizer.tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -427,9 +427,10 @@ def _patch_transformer_blocks(model: Model) -> bool:
 
     Returns True if the patch was applied.
     """
-    from exllamav3_opt._ext import fused_rmsnorm_residual as _fused_kern
     from exllamav3.modules.transformer import TransformerBlock
     from exllamav3.util.tensor import to2 as _to2
+
+    from exllamav3_opt._ext import fused_rmsnorm_residual as _fused_kern
 
     # Set per-instance flag: can this block's mlp_norm be fused?
     patched = 0
@@ -455,7 +456,10 @@ def _patch_transformer_blocks(model: Model) -> bool:
     # Replace forward at class level (all instances share it)
     def _patched_forward(self, x, params, out_dtype=None):
         if self.attn:
-            y = self.attn_norm.forward(x, params, out_dtype=torch.half) if self.attn_norm else x.half()
+            if self.attn_norm:
+                y = self.attn_norm.forward(x, params, out_dtype=torch.half)
+            else:
+                y = x.half()
             y = self.attn.forward(y, params)
             if params.get("prefill"):
                 return x
@@ -477,8 +481,12 @@ def _patch_transformer_blocks(model: Model) -> bool:
                 x += y
 
         if self.mlp:
-            if not (self.attn and self._can_fuse_norm and x.dtype == torch.half):
-                y = self.mlp_norm.forward(x, params, out_dtype=torch.half) if self.mlp_norm else x.half()
+            _fused = self.attn and self._can_fuse_norm and x.dtype == torch.half
+            if not _fused:
+                if self.mlp_norm:
+                    y = self.mlp_norm.forward(x, params, out_dtype=torch.half)
+                else:
+                    y = x.half()
             y = self.mlp.forward(y, params)
             if self.mlp_post_norm:
                 y = self.mlp_post_norm.forward(y, params)

@@ -315,6 +315,7 @@ class _FallbackQwen35VLStrategy:
 
     def process_image(self, vision_model, tokenizer, image_bytes):
         import io
+
         from PIL import Image
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")

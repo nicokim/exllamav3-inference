@@ -20,6 +20,7 @@ def main():
         sys.exit(1)
 
     from exllamav3 import Cache, Config, Model, Tokenizer
+
     from exllamav3_opt.generator import SlimGenerator
     from exllamav3_opt.prefix_cache import PrefixCache
 
@@ -29,7 +30,10 @@ def main():
     model.load(progressbar=True)
     tokenizer = Tokenizer.from_config(config)
 
-    system_prompt = "You are a helpful AI assistant. You answer questions accurately and concisely." * 10
+    system_prompt = (
+        "You are a helpful AI assistant. "
+        "You answer questions accurately and concisely."
+    ) * 10
     user_msg = "What is the capital of France?"
 
     prompt = (

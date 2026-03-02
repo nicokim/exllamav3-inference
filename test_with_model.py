@@ -15,14 +15,23 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import time
 import statistics
+import time
 
 import torch
 
-MODEL_PATH = "/home/kimox/.cache/huggingface/hub/models--kohai-channel--kohai-vl-27b-v2-EXL3/snapshots/072a9f85e0e15e80c65e4680792d78c016cb073b"
+MODEL_PATH = (
+    "/home/kimox/.cache/huggingface/hub/"
+    "models--kohai-channel--kohai-vl-27b-v2-EXL3/"
+    "snapshots/072a9f85e0e15e80c65e4680792d78c016cb073b"
+)
 
-PROMPT = "<|im_start|>system\nEres Kohai, una VTuber AI amigable que habla en español.<|im_end|>\n<|im_start|>user\nHola Kohai! ¿Cómo estás hoy?<|im_end|>\n<|im_start|>assistant\n"
+PROMPT = (
+    "<|im_start|>system\n"
+    "Eres Kohai, una VTuber AI amigable que habla en español.<|im_end|>\n"
+    "<|im_start|>user\nHola Kohai! ¿Cómo estás hoy?<|im_end|>\n"
+    "<|im_start|>assistant\n"
+)
 
 MAX_TOKENS = 256
 NUM_RUNS = 3
@@ -82,7 +91,10 @@ def bench_slim(gen, tokenizer, sampler):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--no-fused-norm", action="store_true", help="Disable fused RMSNorm+Residual")
+    parser.add_argument(
+        "--no-fused-norm", action="store_true",
+        help="Disable fused RMSNorm+Residual",
+    )
     parser.add_argument("--fp8-cache", action="store_true", help="Use FP8 KV cache (VRAM savings)")
     args = parser.parse_args()
 
