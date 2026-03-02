@@ -15,7 +15,7 @@ jobs:
         with:
           enable-cache: true
 
-      - run: uv run --group dev ruff check
+      - run: uv run --python 3.13 --group dev ruff check
 
   build:
     runs-on: ubuntu-latest
@@ -28,7 +28,7 @@ jobs:
 
       - name: Check Python imports (no CUDA)
         run: |
-          uv run python -c "
+          uv run --python 3.13 python -c "
           import exllamav3_opt
           print('Package imports OK')
           "
