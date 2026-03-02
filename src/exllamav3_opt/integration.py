@@ -1,13 +1,14 @@
 """OptimizedLLM: high-level async inference wrapper.
 
-Provides async generate/stream, process_image/video/pil_images,
-and strategy property. Internally uses SlimGenerator.
+Provides async generate/stream with vision support.
+Internally uses SlimGenerator.
 """
 
 from __future__ import annotations
 
 import asyncio
 import functools
+import io
 import logging
 import threading
 from collections.abc import AsyncIterator
@@ -30,24 +31,27 @@ class LLMConfig:
         model_revision: str = "bpw3.0",
         max_new_tokens: int = 256,
         cache_size: int = 2048,
-        system_prompt_path: str = "prompts/system.txt",
-        **kwargs,
+        temperature: float = 0.8,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        min_p: float = 0.0,
     ) -> None:
         self.model_repo = model_repo
         self.model_revision = model_revision
         self.max_new_tokens = max_new_tokens
         self.cache_size = cache_size
-        self.system_prompt_path = system_prompt_path
-        # Store extra fields (temperature, top_p, top_k, etc.)
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+        self.temperature = temperature
+        self.top_k = top_k
+        self.top_p = top_p
+        self.min_p = min_p
 
 
 class OptimizedLLM:
     """High-level async inference wrapper using SlimGenerator.
 
-    Provides async generate/stream, process_image/video/pil_images,
-    and strategy property.
+    Prompt formatting uses the model's built-in chat template
+    via ``tokenizer.hf_chat_template()``. Sampler and stop
+    conditions are derived from config / model metadata.
     """
 
     def __init__(self, config: LLMConfig, hf_token: str = "") -> None:
@@ -62,8 +66,8 @@ class OptimizedLLM:
         self._generator = None  # SlimGenerator
         self._cache = None
         self._vision_model = None
-        self._strategy = None
         self._prefix_cache: PrefixCache | None = None
+        self._stop_conditions: list[int | str] = []
 
     def download(self) -> str:
         """Download model from HuggingFace Hub. Returns local path."""
@@ -96,6 +100,9 @@ class OptimizedLLM:
 
         self._tokenizer = Tokenizer.from_config(config)
 
+        # Stop conditions from model config
+        self._stop_conditions = list(config.eos_token_id_list)
+
         # Prefix cache (optional)
         if enable_prefix_cache:
             self._prefix_cache = PrefixCache()
@@ -117,15 +124,56 @@ class OptimizedLLM:
             logger.warning("No vision component found, vision features disabled")
             self._vision_model = None
 
-        # Strategy detection
-        self._strategy = _FallbackQwen35VLStrategy()
-
         self._loaded = True
         logger.info("Model loaded successfully (OptimizedLLM)")
 
     @property
-    def strategy(self):
-        return self._strategy
+    def tokenizer(self):
+        return self._tokenizer
+
+    @property
+    def vision_model(self):
+        return self._vision_model
+
+    def _make_sampler(self):
+        """Create sampler from config."""
+        from exllamav3.generator.sampler import ComboSampler
+
+        return ComboSampler(
+            temperature=self._config.temperature,
+            top_k=self._config.top_k,
+            top_p=self._config.top_p,
+            min_p=self._config.min_p,
+        )
+
+    # ------------------------------------------------------------------
+    # Prompt building
+    # ------------------------------------------------------------------
+
+    def build_prompt(
+        self,
+        messages: list[dict[str, str]],
+        embeddings: list | None = None,
+    ) -> str:
+        """Build prompt string using the model's chat template.
+
+        Args:
+            messages: List of {"role": ..., "content": ...} dicts.
+            embeddings: Optional MMEmbedding list. Their text_alias
+                placeholders should already be in the message content.
+
+        Returns:
+            Formatted prompt string ready for generate/stream.
+        """
+        if self._tokenizer is None:
+            raise RuntimeError("Model not loaded")
+        # hf_chat_template returns token IDs — we need the text.
+        # Decode the template output back to string so SlimGenerator
+        # can re-encode with embeddings support.
+        ids = self._tokenizer.hf_chat_template(
+            messages, add_generation_prompt=True
+        )
+        return self._tokenizer.decode(ids)[0]
 
     # ------------------------------------------------------------------
     # Sync internals
@@ -141,15 +189,12 @@ class OptimizedLLM:
         if not self._loaded:
             raise RuntimeError("Model not loaded")
 
-        sampler = self._strategy.get_sampler()
-        stop = self._strategy.get_stop_conditions(self._tokenizer)
-
         return self._generator.generate(
             prompt=prompt,
-            stop_conditions=stop,
-            sampler=sampler,
+            stop_conditions=self._stop_conditions,
+            sampler=self._make_sampler(),
             max_new_tokens=max_new_tokens or self._config.max_new_tokens,
-            add_bos=self._strategy.get_add_bos(),
+            add_bos=True,
             encode_special_tokens=True,
             completion_only=True,
             embeddings=embeddings,
@@ -166,15 +211,12 @@ class OptimizedLLM:
         if not self._loaded:
             raise RuntimeError("Model not loaded")
 
-        sampler = self._strategy.get_sampler()
-        stop = self._strategy.get_stop_conditions(self._tokenizer)
-
         for chunk in self._generator.stream_tokens(
             prompt,
             max_new_tokens=max_new_tokens or self._config.max_new_tokens,
-            sampler=sampler,
-            stop_conditions=stop,
-            add_bos=self._strategy.get_add_bos(),
+            sampler=self._make_sampler(),
+            stop_conditions=self._stop_conditions,
+            add_bos=True,
             encode_special_tokens=True,
             embeddings=embeddings,
             cancel_flag=cancel_flag,
@@ -252,77 +294,20 @@ class OptimizedLLM:
 
     def process_image(self, image_bytes: bytes) -> tuple[list, list[str]] | None:
         """Process image for vision input. Returns (embeddings, aliases) or None."""
-        if self._vision_model is None or self._strategy is None:
+        if self._vision_model is None:
             return None
-        return self._strategy.process_image(
-            self._vision_model, self._tokenizer, image_bytes
-        )
-
-    def process_video(self, video_bytes: bytes) -> tuple[list, list[str]] | None:
-        """Process video frames for vision input. Returns (embeddings, aliases) or None."""
-        if self._vision_model is None or self._strategy is None:
-            return None
-        return self._strategy.process_video(
-            self._vision_model, self._tokenizer, video_bytes
-        )
-
-    def process_pil_images(self, images) -> tuple[list, list[str]] | None:
-        """Process PIL Images for vision input (used by screen capture)."""
-        if self._vision_model is None or self._strategy is None:
-            return None
-        return self._strategy.process_pil_images(
-            self._vision_model, self._tokenizer, images
-        )
-
-
-class _FallbackQwen35VLStrategy:
-    """Minimal Qwen3.5-VL strategy for standalone use."""
-
-    def build_prompt(self, user_text, system_prompt="", history=None, embedding_aliases=None):
-        parts = []
-        if system_prompt:
-            parts.append(f"<|im_start|>system\n{system_prompt}<|im_end|>\n")
-        if history:
-            for msg in history:
-                parts.append(f"<|im_start|>{msg['role']}\n{msg['content']}<|im_end|>\n")
-        user_content = (
-            "".join(embedding_aliases) + user_text if embedding_aliases else user_text
-        )
-        parts.append(f"<|im_start|>user\n{user_content}<|im_end|>\n")
-        parts.append("<|im_start|>assistant\n")
-        return "".join(parts)
-
-    def get_sampler(self):
-        from exllamav3.generator.sampler import ComboSampler
-
-        return ComboSampler(temperature=0.6, top_p=0.95, top_k=20)
-
-    def get_stop_conditions(self, tokenizer):
-        return [tokenizer.eos_token_id, "<|im_end|>"]
-
-    def get_add_bos(self):
-        return True
-
-    def get_cache_size(self):
-        return 8192
-
-    def process_image(self, vision_model, tokenizer, image_bytes):
-        import io
-
         from PIL import Image
 
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         image.thumbnail((512, 512))
-        embeddings = vision_model.get_image_embeddings(tokenizer, image)
-        return [embeddings], [embeddings.text_alias]
+        emb = self._vision_model.get_image_embeddings(self._tokenizer, image)
+        return [emb], [emb.text_alias]
 
-    def process_video(self, vision_model, tokenizer, video_bytes):
-        return None  # Requires cv2
-
-    def process_pil_images(self, vision_model, tokenizer, images):
-        if not images:
+    def process_pil_images(self, images) -> tuple[list, list[str]] | None:
+        """Process PIL Images for vision input. Returns (embeddings, aliases) or None."""
+        if self._vision_model is None or not images:
             return None
         img = images[0].convert("RGB")
         img.thumbnail((512, 512))
-        embeddings = vision_model.get_image_embeddings(tokenizer, img)
-        return [embeddings], [embeddings.text_alias]
+        emb = self._vision_model.get_image_embeddings(self._tokenizer, img)
+        return [emb], [emb.text_alias]
