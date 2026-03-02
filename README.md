@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/nicokim/exllamav3-inference/actions/workflows/ci.yml/badge.svg)](https://github.com/nicokim/exllamav3-inference/actions/workflows/ci.yml)
 
-Single-user optimized inference wrapper for [ExLlamaV3](https://github.com/turboderp/exllamav3). Replaces the upstream 1000+ line Generator with a minimal prefill-decode loop, custom CUDA kernels, and optional FP8 KV cache.
+Single-user optimized inference wrapper for [ExLlamaV3](https://github.com/turboderp-org/exllamav3). Replaces the upstream 1000+ line Generator with a minimal prefill-decode loop, custom CUDA kernels, and optional FP8 KV cache.
 
 Built for [kohai-v2](https://github.com/nicokim/kohai-v2) VTuber AI system running Qwen3.5-VL-27B @ 3.0bpw EXL3.
 
@@ -20,7 +20,7 @@ Built for [kohai-v2](https://github.com/nicokim/kohai-v2) VTuber AI system runni
 - Python >= 3.13
 - CUDA >= 12.8
 - PyTorch >= 2.6
-- [ExLlamaV3](https://github.com/turboderp/exllamav3) (installed separately)
+- [ExLlamaV3](https://github.com/turboderp-org/exllamav3) (installed separately)
 
 ## Install
 
