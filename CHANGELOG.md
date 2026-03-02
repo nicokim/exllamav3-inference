@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/nicokim/exllamav3-inference/compare/v0.3.0...v0.3.1) (2026-03-02)
+
+
+### Bug Fixes
+
+* correct exllamav3 upstream URL in README ([#6](https://github.com/nicokim/exllamav3-inference/issues/6)) ([b98d3a4](https://github.com/nicokim/exllamav3-inference/commit/b98d3a494123d313b210216b64114b5a4bd9b71a))
+
 ## [0.3.0](https://github.com/nicokim/exllamav3-inference/compare/v0.2.0...v0.3.0) (2026-03-02)
 
 
