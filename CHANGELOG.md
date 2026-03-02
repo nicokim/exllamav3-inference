@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5](https://github.com/nicokim/exllamav3-inference/compare/v0.3.4...v0.3.5) (2026-03-02)
+
+
+### Bug Fixes
+
+* stale RoPE positions in decode loop and PrefixCache recurrent state ([#17](https://github.com/nicokim/exllamav3-inference/issues/17)) ([b8884a8](https://github.com/nicokim/exllamav3-inference/commit/b8884a82087c8afbb74bbfc5820c07ad73b878ea))
+
 ## [0.3.4](https://github.com/nicokim/exllamav3-inference/compare/v0.3.3...v0.3.4) (2026-03-02)
 
 
