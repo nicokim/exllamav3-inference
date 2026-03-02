@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/nicokim/exllamav3-inference/compare/v0.3.2...v0.3.3) (2026-03-02)
+
+
+### Bug Fixes
+
+* prefix cache copy_ crash inside inference_mode ([#13](https://github.com/nicokim/exllamav3-inference/issues/13)) ([6a6a5b1](https://github.com/nicokim/exllamav3-inference/commit/6a6a5b108249c39ce27a5190a24191ea39e139cd))
+
 ## [0.3.2](https://github.com/nicokim/exllamav3-inference/compare/v0.3.1...v0.3.2) (2026-03-02)
 
 
