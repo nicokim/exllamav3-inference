@@ -244,8 +244,10 @@ class SlimGenerator:
         prefill_ids_gpu = self.pool.get_prefill_ids(prefill_ids)
 
         params = self._build_params(block_table, embeddings)
-        params["last_tokens_only"] = 1
+        # Don't use last_tokens_only — it prevents GatedDeltaNet layers
+        # from updating recurrent state for earlier positions
         prefill_logits = self.model.forward(input_ids=prefill_ids_gpu, params=params)
+        prefill_logits = prefill_logits[:, -1:, :]
 
         kv_position = seq_len
 
@@ -254,7 +256,7 @@ class SlimGenerator:
             self.prefix_cache.capture(input_ids, self.cache, kv_position)
 
         # --- SAMPLE FIRST TOKEN FROM PREFILL LOGITS ---
-        logits = prefill_logits[:, -1:, :self.vocab_size]
+        logits = prefill_logits[:, :, :self.vocab_size]
         token_id = self._sample(logits, sampler, rng_val)
         rng_val = (rng_val + 1) & 0xFFFFFFFF
 
