@@ -13,10 +13,8 @@ from setuptools import setup
 EXT_DIR = Path("src/exllamav3_opt/_ext")
 
 # Upstream exllamav3_ext include path for reusing util.cuh, reduction.cuh, etc.
-UPSTREAM_EXT = os.environ.get(
-    "EXLLAMAV3_EXT_INCLUDE",
-    str(Path.home() / "Projects/kohai-v2/exllamav3/exllamav3/exllamav3_ext"),
-)
+# Set EXLLAMAV3_EXT_INCLUDE to the path of your exllamav3 ext directory.
+UPSTREAM_EXT = os.environ.get("EXLLAMAV3_EXT_INCLUDE", "")
 
 
 def _get_ext_modules():

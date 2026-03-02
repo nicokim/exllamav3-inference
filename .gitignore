@@ -8,4 +8,5 @@ build/
 *.egg
 .pytest_cache/
 .claude/
+.venv/
 test_with_model.py
