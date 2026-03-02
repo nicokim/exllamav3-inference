@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/nicokim/exllamav3-inference/compare/v0.3.3...v0.3.4) (2026-03-02)
+
+
+### Bug Fixes
+
+* remove last_tokens_only from prefill to fix GatedDeltaNet state ([#15](https://github.com/nicokim/exllamav3-inference/issues/15)) ([b9204c0](https://github.com/nicokim/exllamav3-inference/commit/b9204c0867ef30274083a8c3897b9d7bfae922f8))
+
 ## [0.3.3](https://github.com/nicokim/exllamav3-inference/compare/v0.3.2...v0.3.3) (2026-03-02)
 
 
