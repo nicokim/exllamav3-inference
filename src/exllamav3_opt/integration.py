@@ -12,9 +12,8 @@ import io
 import logging
 import threading
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
-
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from huggingface_hub import snapshot_download
 
