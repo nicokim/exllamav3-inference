@@ -4,7 +4,7 @@
 
 Single-user optimized inference wrapper for [ExLlamaV3](https://github.com/turboderp-org/exllamav3). Replaces the upstream 1000+ line Generator with a minimal prefill-decode loop, custom CUDA kernels, and optional FP8 KV cache.
 
-Built for [kohai-v2](https://github.com/nicokim/kohai-v2) VTuber AI system running Qwen3.5-VL-27B @ 3.0bpw EXL3.
+Tested with Qwen3.5-VL-27B @ 3.0bpw EXL3 on RTX 5090.
 
 ## Features
 
@@ -13,7 +13,7 @@ Built for [kohai-v2](https://github.com/nicokim/kohai-v2) VTuber AI system runni
 - **Fused Sampling**: temperature + top-k + Gumbel noise + argmax in one kernel
 - **FP8 KV Cache**: E4M3FN quantized KV storage (~50% VRAM savings)
 - **PrefixCache**: snapshots system prompt KV to CPU pinned memory
-- **OptimizedLLM**: drop-in replacement for kohai-v2's `LLM` class
+- **OptimizedLLM**: high-level async inference wrapper with vision support
 
 ## Requirements
 
@@ -99,6 +99,6 @@ src/exllamav3_opt/
   fp8_cache.py              # CacheLayer_fp8 (CacheLayer ABC)
   prefix_cache.py           # PrefixCache
   tensor_pool.py            # Pre-allocated tensor pool
-  integration.py            # OptimizedLLM (kohai-v2 drop-in)
+  integration.py            # OptimizedLLM (async wrapper)
   compile.py                # torch.compile wrappers
 ```
