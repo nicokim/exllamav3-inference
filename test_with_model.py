@@ -5,10 +5,16 @@ Proper A/B comparison:
 2. Warmup run for each generator (excluded from timing)
 3. N timed runs of 256 tokens each, no stop conditions (force full decode)
 4. Reports decode-only tok/s (prefill time separated)
+
+Usage:
+    python test_with_model.py                  # default: fused_norm ON
+    python test_with_model.py --no-fused-norm  # disable fused norm
+    python test_with_model.py --fp8-cache      # use FP8 KV cache
 """
 
 from __future__ import annotations
 
+import argparse
 import time
 import statistics
 
@@ -75,6 +81,11 @@ def bench_slim(gen, tokenizer, sampler):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--no-fused-norm", action="store_true", help="Disable fused RMSNorm+Residual")
+    parser.add_argument("--fp8-cache", action="store_true", help="Use FP8 KV cache (VRAM savings)")
+    args = parser.parse_args()
+
     from exllamav3 import Cache, Config, Model, Tokenizer
     from exllamav3.generator.generator import Generator
     from exllamav3.generator.sampler import ComboSampler
@@ -85,7 +96,16 @@ def main():
 
     config = Config.from_directory(MODEL_PATH)
     model = Model.from_config(config)
-    cache = Cache(model, max_num_tokens=4096)
+
+    cache_kwargs = {}
+    if args.fp8_cache:
+        from exllamav3_opt.fp8_cache import CacheLayer_fp8
+        cache_kwargs["layer_type"] = CacheLayer_fp8
+        print("  KV cache: FP8 E4M3FN")
+    else:
+        print("  KV cache: FP16 (default)")
+
+    cache = Cache(model, max_num_tokens=4096, **cache_kwargs)
     model.load(progressbar=True)
     tokenizer = Tokenizer.from_config(config)
 
@@ -113,12 +133,19 @@ def main():
             print(f"  Output: {result[:80]}...")
 
     # ---- SlimGenerator ----
+    use_fused = not args.no_fused_norm
+    label = "SLIM Generator"
+    if use_fused:
+        label += " + fused norm"
+    if args.fp8_cache:
+        label += " + FP8 cache"
+
     print("\n" + "=" * 60)
-    print(f"SLIM Generator — {NUM_RUNS} runs x {MAX_TOKENS} tokens")
+    print(f"{label} — {NUM_RUNS} runs x {MAX_TOKENS} tokens")
     print("=" * 60)
 
     from exllamav3_opt.generator import SlimGenerator
-    slim_gen = SlimGenerator(model, cache, tokenizer)
+    slim_gen = SlimGenerator(model, cache, tokenizer, use_fused_norm=use_fused)
 
     # Warmup
     print("  Warmup...", end="", flush=True)

@@ -16,6 +16,8 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <torch/extension.h>
+#include <c10/cuda/CUDAGuard.h>
+#include <c10/cuda/CUDAStream.h>
 
 constexpr int NUM_THREADS = 1024;
 constexpr int WARPS_PER_BLOCK_NORM = NUM_THREADS / 32;
@@ -86,6 +88,7 @@ void fused_rmsnorm_residual_kernel(
     const half* __restrict__ weight,      // (dim,) — rmsnorm weight
     half* __restrict__ y,                 // (rows, dim) — normalized output
     const float epsilon,
+    const float constant_bias,            // added to weight (e.g. 1.0 for Qwen3.5)
     const int dim
 ) {
     const int row = blockIdx.x;
@@ -142,10 +145,10 @@ void fused_rmsnorm_residual_kernel(
         load_half4(w4, weight, w_idx);
 
         float4 y4;
-        y4.x = x4.x * rms * w4.x;
-        y4.y = x4.y * rms * w4.y;
-        y4.z = x4.z * rms * w4.z;
-        y4.w = x4.w * rms * w4.w;
+        y4.x = x4.x * rms * (w4.x + constant_bias);
+        y4.y = x4.y * rms * (w4.y + constant_bias);
+        y4.z = x4.z * rms * (w4.z + constant_bias);
+        y4.w = x4.w * rms * (w4.w + constant_bias);
 
         store_half4(y, idx, y4);
     }
@@ -154,7 +157,7 @@ void fused_rmsnorm_residual_kernel(
         int idx = row_offset + d;
         float xv = __half2float(x[idx]);
         float wv = __half2float(weight[d]);
-        y[idx] = __float2half(xv * rms * wv);
+        y[idx] = __float2half(xv * rms * (wv + constant_bias));
     }
 }
 
@@ -165,7 +168,8 @@ void fused_rmsnorm_residual(
     torch::Tensor attn_out,   // (rows, dim) fp16
     torch::Tensor weight,     // (dim,) fp16
     torch::Tensor y,          // (rows, dim) fp16 output
-    float epsilon
+    float epsilon,
+    float constant_bias       // added to weight (e.g. 1.0 for Qwen3.5)
 ) {
     TORCH_CHECK(x.dtype() == torch::kHalf, "x must be fp16");
     TORCH_CHECK(attn_out.dtype() == torch::kHalf, "attn_out must be fp16");
@@ -178,8 +182,8 @@ void fused_rmsnorm_residual(
     dim3 grid(rows);
     dim3 block(NUM_THREADS);
 
-    const at::cuda::OptionalCUDAGuard device_guard(x.device());
-    cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
+    const c10::cuda::OptionalCUDAGuard device_guard(x.device());
+    cudaStream_t stream = c10::cuda::getCurrentCUDAStream().stream();
 
     fused_rmsnorm_residual_kernel<<<grid, block, 0, stream>>>(
         (half*)x.data_ptr(),
@@ -187,6 +191,7 @@ void fused_rmsnorm_residual(
         (const half*)weight.data_ptr(),
         (half*)y.data_ptr(),
         epsilon,
+        constant_bias,
         dim
     );
 }

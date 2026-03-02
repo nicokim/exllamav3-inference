@@ -62,6 +62,7 @@ class SlimGenerator:
         fused_temperature: float = 1.0,
         fused_top_k: int = 0,
         compile_lm_head: bool = False,
+        use_fused_norm: bool = True,
     ) -> None:
         self.model = model
         self.cache = cache
@@ -128,6 +129,15 @@ class SlimGenerator:
                 _compile(model)
             except Exception as e:
                 logger.debug("LM head compile skipped: %s", e)
+
+        # Fused RMSNorm+Residual: monkey-patch TransformerBlock.forward()
+        # to fuse `x += attn_out; y = rmsnorm(x)` into a single kernel
+        self._use_fused_norm = False
+        if use_fused_norm:
+            try:
+                self._use_fused_norm = _patch_transformer_blocks(model)
+            except Exception as e:
+                logger.warning("Fused norm patch failed: %s", e)
 
     def generate(
         self,
@@ -406,3 +416,76 @@ def _check_stop_strings(
         return False, "", buffer
 
     return False, buffer[:-max_hold], buffer[-max_hold:]
+
+
+def _patch_transformer_blocks(model: Model) -> bool:
+    """Monkey-patch TransformerBlock.forward() to fuse residual add + RMSNorm.
+
+    Replaces the pattern ``x += y; y = mlp_norm(x)`` (2 kernel launches)
+    with a single fused_rmsnorm_residual kernel call per layer.
+    36 layers × 1 fusion = 36 fewer kernel launches per token.
+
+    Returns True if the patch was applied.
+    """
+    from exllamav3_opt._ext import fused_rmsnorm_residual as _fused_kern
+    from exllamav3.modules.transformer import TransformerBlock
+    from exllamav3.util.tensor import to2 as _to2
+
+    # Set per-instance flag: can this block's mlp_norm be fused?
+    patched = 0
+    for module in model.modules:
+        if not isinstance(module, TransformerBlock):
+            continue
+        norm = module.mlp_norm
+        module._can_fuse_norm = (
+            module.mlp is not None
+            and norm is not None
+            and hasattr(norm, "rms_norm_eps")
+            and not getattr(norm, "span_heads", False)
+            and not getattr(norm, "unweighted", False)
+            and norm.weight is not None
+        )
+        if module._can_fuse_norm:
+            patched += 1
+
+    if patched == 0:
+        logger.info("No fuseable TransformerBlocks found — skipping patch")
+        return False
+
+    # Replace forward at class level (all instances share it)
+    def _patched_forward(self, x, params, out_dtype=None):
+        if self.attn:
+            y = self.attn_norm.forward(x, params, out_dtype=torch.half) if self.attn_norm else x.half()
+            y = self.attn.forward(y, params)
+            if params.get("prefill"):
+                return x
+            if self.attn_post_norm:
+                y = self.attn_post_norm.forward(y, params)
+
+            # Fused path: x += y; y = (w + bias) * rmsnorm(x)
+            if self._can_fuse_norm and x.dtype == torch.half:
+                dim = x.shape[-1]
+                _fused_kern(
+                    x.view(-1, dim), y.view(-1, dim),
+                    self.mlp_norm.weight.data,
+                    y.view(-1, dim),
+                    self.mlp_norm.rms_norm_eps,
+                    self.mlp_norm.constant_bias,
+                )
+                y = y.view_as(x)
+            else:
+                x += y
+
+        if self.mlp:
+            if not (self.attn and self._can_fuse_norm and x.dtype == torch.half):
+                y = self.mlp_norm.forward(x, params, out_dtype=torch.half) if self.mlp_norm else x.half()
+            y = self.mlp.forward(y, params)
+            if self.mlp_post_norm:
+                y = self.mlp_post_norm.forward(y, params)
+            x += y
+
+        return _to2(x, out_dtype, self.out_dtype)
+
+    TransformerBlock.forward = _patched_forward
+    logger.info("Fused RMSNorm+Residual patch applied to %d/%d blocks", patched, len(model.modules))
+    return True

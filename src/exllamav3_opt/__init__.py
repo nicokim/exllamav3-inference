@@ -11,17 +11,13 @@ def __getattr__(name: str):
     """Lazy import for modules that depend on exllamav3."""
     _lazy = {
         "CacheLayer_fp8": ("exllamav3_opt.fp8_cache", "CacheLayer_fp8"),
-        "CUDAGraphRunner": ("exllamav3_opt.cuda_graphs", "CUDAGraphRunner"),
         "LLMConfig": ("exllamav3_opt.integration", "LLMConfig"),
         "OptimizedLLM": ("exllamav3_opt.integration", "OptimizedLLM"),
-        "ParallelExecutor": ("exllamav3_opt.threading", "ParallelExecutor"),
         "PrefixCache": ("exllamav3_opt.prefix_cache", "PrefixCache"),
         "SlimGenerator": ("exllamav3_opt.generator", "SlimGenerator"),
-        "SpeculativeCheckpoint": ("exllamav3_opt.speculative", "SpeculativeCheckpoint"),
         "StreamChunk": ("exllamav3_opt.generator", "StreamChunk"),
         "TensorPool": ("exllamav3_opt.tensor_pool", "TensorPool"),
         "compile_components": ("exllamav3_opt.compile", "compile_components"),
-        "is_free_threaded": ("exllamav3_opt.threading", "is_free_threaded"),
     }
 
     if name in _lazy:
@@ -35,15 +31,11 @@ def __getattr__(name: str):
 
 __all__ = [
     "CacheLayer_fp8",
-    "CUDAGraphRunner",
     "LLMConfig",
     "OptimizedLLM",
-    "ParallelExecutor",
     "PrefixCache",
     "SlimGenerator",
-    "SpeculativeCheckpoint",
     "StreamChunk",
     "TensorPool",
     "compile_components",
-    "is_free_threaded",
 ]

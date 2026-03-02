@@ -19,6 +19,8 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <torch/extension.h>
+#include <c10/cuda/CUDAGuard.h>
+#include <c10/cuda/CUDAStream.h>
 
 #include <cfloat>
 
@@ -234,8 +236,8 @@ void fused_sample(
 
     const int vocab_size = logits.size(-1);
 
-    const at::cuda::OptionalCUDAGuard device_guard(logits.device());
-    cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
+    const c10::cuda::OptionalCUDAGuard device_guard(logits.device());
+    cudaStream_t stream = c10::cuda::getCurrentCUDAStream().stream();
 
     if (temperature == 0.0f) {
         argmax_kernel<<<1, SAMPLE_THREADS, 0, stream>>>(
