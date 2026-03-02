@@ -32,6 +32,7 @@ class PrefixCache:
     def is_captured(self) -> bool:
         return self._cached_len > 0
 
+    @torch.no_grad()
     def capture(
         self,
         input_ids: torch.Tensor,
@@ -103,8 +104,12 @@ class PrefixCache:
             return compare_len
         return 0
 
+    @torch.no_grad()
     def restore_to_cache(self, cache: Cache) -> None:
         """Copy KV snapshot from CPU back to GPU cache pages.
+
+        Uses torch.no_grad() to allow in-place copy_ even when called
+        inside torch.inference_mode() (which model.forward() enables).
 
         Args:
             cache: The Cache object to restore into.
