@@ -26,6 +26,8 @@
 #include <cuda_fp8.h>
 #include <cuda_runtime.h>
 #include <torch/extension.h>
+#include <c10/cuda/CUDAGuard.h>
+#include <c10/cuda/CUDAStream.h>
 
 constexpr int FP8_PAGE_SIZE = 256;
 constexpr float FP8_E4M3_MAX = 448.0f;
@@ -220,8 +222,8 @@ void quant_fp8_cache_paged(
     );
     dim3 block(BLOCK_SIZE);
 
-    const at::cuda::OptionalCUDAGuard device_guard(k_in.device());
-    cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
+    const c10::cuda::OptionalCUDAGuard device_guard(k_in.device());
+    cudaStream_t stream = c10::cuda::getCurrentCUDAStream().stream();
 
     quant_fp8_cache_paged_kernel<<<grid, block, 0, stream>>>(
         (const half*)k_in.data_ptr(),
@@ -265,8 +267,8 @@ void dequant_fp8_cache_paged(
     );
     dim3 block(BLOCK_SIZE);
 
-    const at::cuda::OptionalCUDAGuard device_guard(k_in.device());
-    cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
+    const c10::cuda::OptionalCUDAGuard device_guard(k_in.device());
+    cudaStream_t stream = c10::cuda::getCurrentCUDAStream().stream();
 
     dequant_fp8_cache_paged_kernel<<<grid, block, 0, stream>>>(
         (const __nv_fp8_e4m3*)k_in.data_ptr(),

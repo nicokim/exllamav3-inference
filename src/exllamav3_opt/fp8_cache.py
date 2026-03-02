@@ -1,16 +1,18 @@
 """FP8 E4M3FN KV cache layer.
 
-Implements the CacheLayer interface with FP8 quantized storage:
+Implements the CacheLayer ABC with FP8 quantized storage:
 - K and V stored as torch.float8_e4m3fn
 - Per-head-per-token scales stored as torch.float16
 - ~50% VRAM savings vs FP16 cache (e.g. 293 MB vs 576 MB for 8192 tokens)
 
+Pass ``layer_type=CacheLayer_fp8`` to the Cache constructor to use.
 Requires compiled CUDA kernels (fp8_cache_kernels.cu).
 """
 
 from __future__ import annotations
 
 import torch
+from exllamav3.cache.cache import CacheLayer
 
 PAGE_SIZE = 256  # Must match exllamav3.constants.PAGE_SIZE
 
@@ -30,10 +32,10 @@ def _get_fp8_scratch(
     return _FP8_SCRATCH[key]
 
 
-class CacheLayer_fp8:
+class CacheLayer_fp8(CacheLayer):
     """FP8 E4M3FN quantized KV cache layer.
 
-    Follows the same interface as upstream CacheLayer for drop-in compatibility.
+    Drop-in replacement for CacheLayer_fp16 via ``Cache(model, ..., layer_type=CacheLayer_fp8)``.
 
     Storage layout:
         qk, qv: (num_pages, PAGE_SIZE, num_kv_heads, head_dim) as float8_e4m3fn
@@ -48,9 +50,7 @@ class CacheLayer_fp8:
         max_num_tokens: int,
         **kwargs,
     ) -> None:
-        self.cache_id = cache_id
-        self.max_num_tokens = max_num_tokens
-        self.attention = attention
+        super().__init__(config, attention, cache_id, max_num_tokens, **kwargs)
 
         self.num_kv_heads = attention.num_kv_heads
         self.head_dim = attention.head_dim

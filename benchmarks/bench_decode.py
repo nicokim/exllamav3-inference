@@ -69,7 +69,10 @@ def main():
     model.load(progressbar=True)
     tokenizer = Tokenizer.from_config(config)
 
-    prompt = "<|im_start|>user\nExplain quantum computing in simple terms.<|im_end|>\n<|im_start|>assistant\n"
+    prompt = (
+        "<|im_start|>user\nExplain quantum computing in simple terms."
+        "<|im_end|>\n<|im_start|>assistant\n"
+    )
     max_tokens = 128
 
     print(f"\nBenchmark: decode {max_tokens} tokens")

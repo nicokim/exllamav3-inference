@@ -3,26 +3,36 @@ requires = ["setuptools>=75.0", "torch>=2.6.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "exllamav3-optimized"
+name = "exllamav3-inference"
 version = "0.1.0"
 description = "Single-user optimized inference wrapper for ExLlamaV3"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
+authors = [
+    { name = "nicokim" },
+]
+keywords = ["exllamav3", "inference", "llm", "cuda"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
-    # --- Inference-essential (matches exllamav3 runtime needs) ---
     "torch>=2.6.0",
     "flashinfer-python>=0.6.3",
     "tokenizers>=0.22.0",
     "numpy>=2.4.0",
     "safetensors>=0.7.0",
     "typing_extensions>=4.12.0",
-    # --- exllamav3 fork (install separately) ---
-    # pip install --no-build-isolation -e /path/to/exllamav3-fork
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest>=8.0",
     "ruff>=0.9.0",
+]
+test = [
+    "pytest>=8.0",
 ]
 
 [tool.setuptools.packages.find]

@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - run: uv build --python 3.13 --sdist
+        env:
+          EXLLAMAV3_OPT_NOCOMPILE: "1"
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

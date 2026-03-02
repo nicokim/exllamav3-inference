@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - run: uvx ruff check
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Check package structure
+        run: |
+          uv run --no-project python -c "
+          import ast, pathlib
+          src = pathlib.Path('src/exllamav3_opt')
+          for f in sorted(src.glob('*.py')):
+              ast.parse(f.read_text())
+              print(f'  {f.name}: syntax OK')
+          "

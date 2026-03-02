@@ -11,7 +11,6 @@ import os
 import pytest
 import torch
 
-
 MODEL_PATH = os.environ.get("EXLLAMAV3_MODEL_PATH", "")
 
 

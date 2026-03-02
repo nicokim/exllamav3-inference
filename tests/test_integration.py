@@ -6,7 +6,6 @@ Validates API compatibility with kohai-v2's LLM class.
 from __future__ import annotations
 
 import asyncio
-import os
 
 import pytest
 

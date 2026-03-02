@@ -31,7 +31,7 @@ def main():
     # FP16 cache size per layer
     fp16_per_layer = num_pages * page_size * num_kv_heads * head_dim * 2  # bytes
     fp16_total = fp16_per_layer * num_layers * 2  # K + V
-    print(f"\nFP16 KV cache:")
+    print("\nFP16 KV cache:")
     print(f"  Per layer (K+V): {fp16_per_layer * 2 / 1024 / 1024:.1f} MB")
     print(f"  Total:           {fp16_total / 1024 / 1024:.1f} MB")
 
@@ -40,7 +40,7 @@ def main():
     fp8_per_layer_scales = num_pages * page_size * num_kv_heads * 2  # fp16 scales
     fp8_per_layer = fp8_per_layer_kv + fp8_per_layer_scales
     fp8_total = fp8_per_layer * num_layers * 2  # K + V
-    print(f"\nFP8 E4M3 KV cache:")
+    print("\nFP8 E4M3 KV cache:")
     print(f"  Per layer (K+V): {fp8_per_layer * 2 / 1024 / 1024:.1f} MB")
     print(f"  Total:           {fp8_total / 1024 / 1024:.1f} MB")
 

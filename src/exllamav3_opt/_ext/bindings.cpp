@@ -35,7 +35,8 @@ void fused_rmsnorm_residual(
     torch::Tensor attn_out,
     torch::Tensor weight,
     torch::Tensor y,
-    float epsilon
+    float epsilon,
+    float constant_bias
 );
 
 // Fused Sampling (temperature + top-k + Gumbel + argmax)

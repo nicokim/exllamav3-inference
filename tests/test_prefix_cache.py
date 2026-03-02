@@ -74,7 +74,10 @@ class TestPrefixCacheIntegration:
         prefix_cache = PrefixCache()
         gen = SlimGenerator(model, cache, tokenizer, prefix_cache=prefix_cache)
 
-        prompt = "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n"
+        prompt = (
+            "<|im_start|>system\nYou are helpful.<|im_end|>\n"
+            "<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n"
+        )
 
         # First generation — captures prefix cache
         result1 = gen.generate(
