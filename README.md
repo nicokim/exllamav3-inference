@@ -13,7 +13,7 @@ Tested with Qwen3.5-VL-27B @ 3.0bpw EXL3 on RTX 5090.
 - **Fused Sampling**: temperature + top-k + Gumbel noise + argmax in one kernel
 - **FP8 KV Cache**: E4M3FN quantized KV storage (~50% VRAM savings)
 - **PrefixCache**: snapshots system prompt KV to CPU pinned memory
-- **OptimizedLLM**: high-level async inference wrapper with vision support
+- **OptimizedLLM**: high-level async wrapper with chat template and vision support
 
 ## Requirements
 
@@ -25,7 +25,7 @@ Tested with Qwen3.5-VL-27B @ 3.0bpw EXL3 on RTX 5090.
 ## Install
 
 ```bash
-# Install exllamav3 fork first
+# Install exllamav3 first
 pip install --no-build-isolation -e /path/to/exllamav3
 
 # Install this package (compiles CUDA kernels)
@@ -33,6 +33,41 @@ MAX_JOBS=1 uv pip install --no-build-isolation -e .
 ```
 
 ## Usage
+
+### OptimizedLLM (high-level API)
+
+```python
+import asyncio
+from exllamav3_opt.integration import LLMConfig, OptimizedLLM
+
+config = LLMConfig(
+    max_new_tokens=256,
+    cache_size=4096,
+    temperature=0.6,
+    top_k=20,
+)
+llm = OptimizedLLM(config)
+llm.load("/path/to/model")
+
+# build_prompt uses the model's chat template (via HF tokenizer)
+ids = llm.build_prompt([
+    {"role": "system", "content": "You are helpful."},
+    {"role": "user", "content": "Hello!"},
+])
+
+# Async generate
+result = asyncio.run(llm.generate(ids))
+print(result)
+
+# Async streaming
+async def main():
+    async for token in await llm.stream(ids):
+        print(token, end="", flush=True)
+
+asyncio.run(main())
+```
+
+### SlimGenerator (low-level API)
 
 ```python
 from exllamav3 import Cache, Config, Model, Tokenizer
@@ -46,8 +81,16 @@ tokenizer = Tokenizer.from_config(config)
 
 gen = SlimGenerator(model, cache, tokenizer)
 
-# Streaming
+# Text prompt (encoded internally)
 for chunk in gen.stream_tokens("Hello!", max_new_tokens=256):
+    print(chunk.text, end="", flush=True)
+
+# Or pass pre-tokenized input_ids directly
+ids = tokenizer.hf_chat_template(
+    [{"role": "user", "content": "Hello!"}],
+    add_generation_prompt=True,
+)
+for chunk in gen.stream_tokens(input_ids=ids, max_new_tokens=256):
     print(chunk.text, end="", flush=True)
 ```
 
@@ -72,12 +115,6 @@ gen = SlimGenerator(
 ```
 
 ## Benchmark
-
-```bash
-python test_with_model.py                  # default: fused norm ON
-python test_with_model.py --no-fused-norm  # compare without fusion
-python test_with_model.py --fp8-cache      # test FP8 VRAM savings
-```
 
 RTX 5090, Qwen3.5-VL-27B @ 3.0bpw EXL3:
 
