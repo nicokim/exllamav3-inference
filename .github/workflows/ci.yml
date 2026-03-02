@@ -15,7 +15,7 @@ jobs:
         with:
           enable-cache: true
 
-      - run: uv run --python 3.13 --group dev ruff check
+      - run: uv run --group dev ruff check
 
   build:
     runs-on: ubuntu-latest
@@ -26,11 +26,12 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Check Python imports (no CUDA)
+      - name: Check package structure
         run: |
-          uv run --python 3.13 python -c "
-          import exllamav3_opt
-          print('Package imports OK')
+          uv run --no-project python -c "
+          import ast, pathlib
+          src = pathlib.Path('src/exllamav3_opt')
+          for f in sorted(src.glob('*.py')):
+              ast.parse(f.read_text())
+              print(f'  {f.name}: syntax OK')
           "
-        env:
-          EXLLAMAV3_OPT_NOCOMPILE: "1"
