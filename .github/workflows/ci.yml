@@ -15,7 +15,7 @@ jobs:
         with:
           enable-cache: true
 
-      - run: uv run --group dev ruff check
+      - run: uvx ruff check
 
   build:
     runs-on: ubuntu-latest
