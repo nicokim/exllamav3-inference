@@ -92,6 +92,7 @@ class SlimGenerator:
 
         # Pre-allocate tensor pool
         from exllamav3_opt.tensor_pool import TensorPool
+
         self.pool = TensorPool(
             device=self.device,
             hidden_size=self.hidden_size,
@@ -111,13 +112,15 @@ class SlimGenerator:
         if use_fused_sampling:
             try:
                 from exllamav3_opt._ext import fused_sample as _fused_sample
+
                 self._fused_sample = _fused_sample
                 self._fused_temperature = fused_temperature
                 self._fused_top_k = fused_top_k
                 self._use_fused_sampling = True
                 logger.info(
                     "Fused sampling enabled (temp=%.2f, top_k=%d)",
-                    fused_temperature, fused_top_k,
+                    fused_temperature,
+                    fused_top_k,
                 )
             except ImportError:
                 logger.warning("Fused sampling requested but CUDA extension not compiled")
@@ -126,6 +129,7 @@ class SlimGenerator:
         if compile_lm_head:
             try:
                 from exllamav3_opt.compile import compile_lm_head as _compile
+
                 _compile(model)
             except Exception as e:
                 logger.debug("LM head compile skipped: %s", e)
@@ -196,6 +200,7 @@ class SlimGenerator:
         """
         if sampler is None:
             from exllamav3.generator.sampler.presets import DefaultSampler
+
             sampler = DefaultSampler()
 
         stop_tokens, stop_strings = _parse_stop_conditions(stop_conditions)
@@ -222,10 +227,16 @@ class SlimGenerator:
                 self.prefix_cache.restore_to_cache(self.cache)
                 logger.debug("Prefix cache hit: %d tokens", cached_len)
 
-        # Reset recurrent state for new generation
+        # Reset recurrent state for new generation (or restore from cache)
         if self.has_recurrent:
-            rl = self.model.get_recurrent_layers()
-            self._recurrent_state = {m.layer_idx: m.new_recurrent_state() for m in rl}
+            if cached_len > 0 and self.prefix_cache is not None:
+                # Restore recurrent state from prefix cache snapshot
+                rl = self.model.get_recurrent_layers()
+                self._recurrent_state = {m.layer_idx: m.new_recurrent_state() for m in rl}
+                self.prefix_cache.restore_recurrent_states(self._recurrent_state)
+            else:
+                rl = self.model.get_recurrent_layers()
+                self._recurrent_state = {m.layer_idx: m.new_recurrent_state() for m in rl}
 
         # RNG for sampling
         rng_val = seed if seed is not None else random.getrandbits(32)
@@ -235,28 +246,34 @@ class SlimGenerator:
         prefill_len = prefill_ids.shape[-1]
 
         if prefill_len == 0:
-            raise RuntimeError("Full input was cached — no tokens to prefill")
+            # Full cache hit — re-forward last token to get logits
+            self.pool.set_cache_seqlen(seq_len - 1)
+            num_pages_needed = (seq_len + PAGE_SIZE - 1) // PAGE_SIZE
+            block_table = self.pool.get_block_table(num_pages_needed)
+            last_token = input_ids[:, -1:].to(self.device)
+            params = self._build_params(block_table, embeddings)
+            prefill_logits = self.model.forward(input_ids=last_token, params=params)
+        else:
+            num_pages_needed = (cached_len + prefill_len + PAGE_SIZE - 1) // PAGE_SIZE
+            block_table = self.pool.get_block_table(num_pages_needed)
+            self.pool.set_cache_seqlen(cached_len)
 
-        num_pages_needed = (cached_len + prefill_len + PAGE_SIZE - 1) // PAGE_SIZE
-        block_table = self.pool.get_block_table(num_pages_needed)
-        self.pool.set_cache_seqlen(cached_len)
+            prefill_ids_gpu = self.pool.get_prefill_ids(prefill_ids)
 
-        prefill_ids_gpu = self.pool.get_prefill_ids(prefill_ids)
-
-        params = self._build_params(block_table, embeddings)
-        # Don't use last_tokens_only — it prevents GatedDeltaNet layers
-        # from updating recurrent state for earlier positions
-        prefill_logits = self.model.forward(input_ids=prefill_ids_gpu, params=params)
-        prefill_logits = prefill_logits[:, -1:, :]
+            params = self._build_params(block_table, embeddings)
+            # Don't use last_tokens_only — it prevents GatedDeltaNet layers
+            # from updating recurrent state for earlier positions
+            prefill_logits = self.model.forward(input_ids=prefill_ids_gpu, params=params)
+            prefill_logits = prefill_logits[:, -1:, :]
 
         kv_position = seq_len
 
         # Capture prefix cache on first run
         if self.prefix_cache is not None and cached_len == 0:
-            self.prefix_cache.capture(input_ids, self.cache, kv_position)
+            self.prefix_cache.capture(input_ids, self.cache, kv_position, self._recurrent_state)
 
         # --- SAMPLE FIRST TOKEN FROM PREFILL LOGITS ---
-        logits = prefill_logits[:, :, :self.vocab_size]
+        logits = prefill_logits[:, :, : self.vocab_size]
         token_id = self._sample(logits, sampler, rng_val)
         rng_val = (rng_val + 1) & 0xFFFFFFFF
 
@@ -287,8 +304,10 @@ class SlimGenerator:
             "cache": self.cache,
             "cache_seqlens": self.pool.cache_seqlens,
         }
-        if self.use_mrope:
-            decode_params["positions"] = self.pool.cache_seqlens.clone()
+        # Don't pass "positions" here. The attention module defaults to
+        # cache_seqlens when positions is None, which is updated in-place
+        # each iteration via pool.set_cache_seqlen(). Passing a cloned
+        # tensor here would freeze the value and corrupt RoPE positions.
         if self._recurrent_state is not None:
             decode_params["recurrent_states"] = self._recurrent_state
 
@@ -311,13 +330,11 @@ class SlimGenerator:
             self.pool.set_input_id(token_id)
 
             # Forward single token
-            decode_logits = self.model.forward(
-                input_ids=pool_input_ids, params=decode_params
-            )
+            decode_logits = self.model.forward(input_ids=pool_input_ids, params=decode_params)
             kv_position += 1
 
             # Sample
-            logits = decode_logits[:, 0:1, :self.vocab_size]
+            logits = decode_logits[:, 0:1, : self.vocab_size]
             token_id = self._sample(logits, sampler, rng_val)
             rng_val = (rng_val + 1) & 0xFFFFFFFF
 
@@ -402,9 +419,7 @@ def _parse_stop_conditions(
     return stop_tokens, stop_strings
 
 
-def _check_stop_strings(
-    buffer: str, stop_strings: set[str]
-) -> tuple[bool, str, str]:
+def _check_stop_strings(buffer: str, stop_strings: set[str]) -> tuple[bool, str, str]:
     """Check if buffer contains any stop string.
 
     Returns (eos, text_to_yield, remaining_buffer).
@@ -483,7 +498,8 @@ def _patch_transformer_blocks(model: Model) -> bool:
             if self._can_fuse_norm and x.dtype == torch.half:
                 dim = x.shape[-1]
                 _fused_kern(
-                    x.view(-1, dim), y.view(-1, dim),
+                    x.view(-1, dim),
+                    y.view(-1, dim),
                     self.mlp_norm.weight.data,
                     y.view(-1, dim),
                     self.mlp_norm.rms_norm_eps,

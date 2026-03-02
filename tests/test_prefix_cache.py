@@ -23,10 +23,12 @@ class TestPrefixCacheUnit:
         # Manually set state
         pc._cached_ids = torch.tensor([[1, 2, 3]])
         pc._cached_len = 3
+        pc._recurrent_snapshots = {0: (torch.zeros(1), torch.zeros(1), 3)}
         assert pc.is_captured
 
         pc.invalidate()
         assert not pc.is_captured
+        assert len(pc._recurrent_snapshots) == 0
 
     def test_get_cached_length_full_match(self):
         from exllamav3_opt.prefix_cache import PrefixCache
@@ -61,10 +63,55 @@ class TestPrefixCacheUnit:
         result = pc.get_cached_length(torch.tensor([[10, 20]]))
         assert result == 2
 
+    def test_restore_recurrent_states(self):
+        """Recurrent state snapshots are restored to target states."""
+        from exllamav3_opt.prefix_cache import PrefixCache
+
+        pc = PrefixCache()
+
+        # Simulate a GDN_RecurrentState with the same attributes
+        class FakeRecurrentState:
+            def __init__(self):
+                self.last_recurrent_state = None
+                self.last_conv_state = None
+                self.position = 0
+
+        # Manually populate a snapshot (as if captured after prefill)
+        rec_tensor = torch.randn(1, 4, 8, 16)
+        conv_tensor = torch.randn(1, 32, 4)
+        pc._recurrent_snapshots = {0: (rec_tensor, conv_tensor, 42)}
+
+        # Create target states to restore into
+        target = {0: FakeRecurrentState()}
+        pc.restore_recurrent_states(target)
+
+        assert target[0].last_recurrent_state is not None
+        assert torch.equal(target[0].last_recurrent_state.cpu(), rec_tensor)
+        assert torch.equal(target[0].last_conv_state.cpu(), conv_tensor)
+        assert target[0].position == 42
+
+    def test_restore_recurrent_states_empty(self):
+        """Restore with no snapshots is a no-op."""
+        from exllamav3_opt.prefix_cache import PrefixCache
+
+        pc = PrefixCache()
+
+        class FakeRecurrentState:
+            def __init__(self):
+                self.last_recurrent_state = None
+                self.last_conv_state = None
+                self.position = 0
+
+        target = {0: FakeRecurrentState()}
+        pc.restore_recurrent_states(target)
+
+        # Should remain unchanged
+        assert target[0].last_recurrent_state is None
+        assert target[0].position == 0
+
 
 @pytest.mark.requires_model
 class TestPrefixCacheIntegration:
-
     def test_capture_and_restore(self, loaded_model):
         """Capture KV snapshot and verify restore produces same output."""
         from exllamav3_opt.generator import SlimGenerator
