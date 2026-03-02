@@ -12,7 +12,7 @@ Tested with Qwen3.5-VL-27B @ 3.0bpw EXL3 on RTX 5090.
 - **Fused RMSNorm+Residual**: CUDA kernel fusing `x += attn_out; y = rmsnorm(x)` into a single launch (36 fewer kernel launches per token)
 - **Fused Sampling**: temperature + top-k + Gumbel noise + argmax in one kernel
 - **FP8 KV Cache**: E4M3FN quantized KV storage (~50% VRAM savings)
-- **PrefixCache**: snapshots system prompt KV to CPU pinned memory
+- **PrefixCache**: snapshots system prompt KV + recurrent state (GatedDeltaNet) to CPU pinned memory
 - **OptimizedLLM**: high-level async wrapper with chat template and vision support
 
 ## Requirements
