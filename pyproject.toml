@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=75.0", "torch>=2.6.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exllamav3-optimized"
+version = "0.1.0"
+description = "Single-user optimized inference wrapper for ExLlamaV3"
+requires-python = ">=3.13"
+dependencies = [
+    # --- Inference-essential (matches exllamav3 runtime needs) ---
+    "torch>=2.6.0",
+    "flashinfer-python>=0.6.3",
+    "tokenizers>=0.22.0",
+    "numpy>=2.4.0",
+    "safetensors>=0.7.0",
+    "typing_extensions>=4.12.0",
+    # --- exllamav3 fork (install separately) ---
+    # pip install --no-build-isolation -e /path/to/exllamav3-fork
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.9.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
