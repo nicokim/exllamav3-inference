@@ -1,7 +1,7 @@
-"""Drop-in OptimizedLLM replacement for kohai-v2's LLM class.
+"""OptimizedLLM: high-level async inference wrapper.
 
-Same API contract: async generate/stream, process_image/video/pil_images,
-strategy property. Internally uses SlimGenerator instead of upstream Generator.
+Provides async generate/stream, process_image/video/pil_images,
+and strategy property. Internally uses SlimGenerator.
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 class LLMConfig:
-    """Minimal config matching kohai-v2's LLMConfig fields used by LLM."""
+    """Configuration for OptimizedLLM."""
 
     def __init__(
         self,
-        model_repo: str = "kohai-channel/kohai-vl-27b-v2-EXL3",
+        model_repo: str = "",
         model_revision: str = "bpw3.0",
         max_new_tokens: int = 256,
         cache_size: int = 2048,
@@ -44,9 +44,9 @@ class LLMConfig:
 
 
 class OptimizedLLM:
-    """Drop-in replacement for kohai-v2's LLM using SlimGenerator.
+    """High-level async inference wrapper using SlimGenerator.
 
-    API-compatible: same async generate/stream, process_image/video/pil_images,
+    Provides async generate/stream, process_image/video/pil_images,
     and strategy property.
     """
 
@@ -117,15 +117,8 @@ class OptimizedLLM:
             logger.warning("No vision component found, vision features disabled")
             self._vision_model = None
 
-        # Strategy detection (lazy import to match kohai-v2 pattern)
-        try:
-            from kohai.brain.strategy import detect_strategy
-
-            self._strategy = detect_strategy(self._config.model_repo)
-        except ImportError:
-            # Running standalone — use a default strategy
-            logger.warning("kohai.brain.strategy not found, using built-in Qwen35VL strategy")
-            self._strategy = _FallbackQwen35VLStrategy()
+        # Strategy detection
+        self._strategy = _FallbackQwen35VLStrategy()
 
         self._loaded = True
         logger.info("Model loaded successfully (OptimizedLLM)")
@@ -190,7 +183,7 @@ class OptimizedLLM:
                 yield chunk.text
 
     # ------------------------------------------------------------------
-    # Async public API (matches kohai-v2's LLM exactly)
+    # Async public API
     # ------------------------------------------------------------------
 
     async def generate(
@@ -254,7 +247,7 @@ class OptimizedLLM:
                 await future
 
     # ------------------------------------------------------------------
-    # Vision processing (delegates to strategy, same as kohai-v2)
+    # Vision processing
     # ------------------------------------------------------------------
 
     def process_image(self, image_bytes: bytes) -> tuple[list, list[str]] | None:
@@ -283,7 +276,7 @@ class OptimizedLLM:
 
 
 class _FallbackQwen35VLStrategy:
-    """Minimal Qwen3.5-VL strategy for standalone use (no kohai dependency)."""
+    """Minimal Qwen3.5-VL strategy for standalone use."""
 
     def build_prompt(self, user_text, system_prompt="", history=None, embedding_aliases=None):
         parts = []
@@ -324,7 +317,7 @@ class _FallbackQwen35VLStrategy:
         return [embeddings], [embeddings.text_alias]
 
     def process_video(self, vision_model, tokenizer, video_bytes):
-        return None  # Requires cv2 — import from kohai strategy if needed
+        return None  # Requires cv2
 
     def process_pil_images(self, vision_model, tokenizer, images):
         if not images:

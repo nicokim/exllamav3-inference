@@ -1,7 +1,4 @@
-"""Tests for OptimizedLLM integration.
-
-Validates API compatibility with kohai-v2's LLM class.
-"""
+"""Tests for OptimizedLLM integration."""
 
 from __future__ import annotations
 
@@ -60,7 +57,7 @@ class TestLLMConfig:
         from exllamav3_opt.integration import LLMConfig
 
         config = LLMConfig()
-        assert config.model_repo == "kohai-channel/kohai-vl-27b-v2-EXL3"
+        assert config.model_repo == ""
         assert config.max_new_tokens == 256
         assert config.cache_size == 2048
 
