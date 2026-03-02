@@ -141,8 +141,9 @@ class SlimGenerator:
 
     def generate(
         self,
-        prompt: str,
+        prompt: str | None = None,
         *,
+        input_ids: torch.Tensor | None = None,
         max_new_tokens: int = 256,
         sampler: Sampler | None = None,
         stop_conditions: list[int | str] | None = None,
@@ -156,6 +157,7 @@ class SlimGenerator:
         parts = []
         for chunk in self.stream_tokens(
             prompt,
+            input_ids=input_ids,
             max_new_tokens=max_new_tokens,
             sampler=sampler,
             stop_conditions=stop_conditions,
@@ -168,8 +170,9 @@ class SlimGenerator:
 
     def stream_tokens(
         self,
-        prompt: str,
+        prompt: str | None = None,
         *,
+        input_ids: torch.Tensor | None = None,
         max_new_tokens: int = 256,
         sampler: Sampler | None = None,
         stop_conditions: list[int | str] | None = None,
@@ -181,8 +184,11 @@ class SlimGenerator:
     ) -> Generator[StreamChunk, None, None]:
         """Core streaming generation loop.
 
+        Accepts either a text ``prompt`` (encoded internally) or
+        pre-tokenized ``input_ids`` (shape ``(1, seq_len)``).
+
         Flow:
-        1. Encode prompt
+        1. Encode prompt (if text)
         2. Check prefix cache for system prompt hit
         3. Prefill remaining tokens -> get logits for last position
         4. Sample first token from prefill logits
@@ -194,13 +200,18 @@ class SlimGenerator:
 
         stop_tokens, stop_strings = _parse_stop_conditions(stop_conditions)
 
-        # Encode prompt
-        input_ids = self.tokenizer.encode(
-            prompt,
-            encode_special_tokens=encode_special_tokens,
-            add_bos=add_bos,
-            embeddings=embeddings,
-        )
+        # Encode prompt (or use pre-tokenized input_ids)
+        if input_ids is not None:
+            pass  # already tokenized
+        elif prompt is not None:
+            input_ids = self.tokenizer.encode(
+                prompt,
+                encode_special_tokens=encode_special_tokens,
+                add_bos=add_bos,
+                embeddings=embeddings,
+            )
+        else:
+            raise ValueError("Either prompt or input_ids must be provided")
         seq_len = input_ids.shape[-1]
 
         # Check prefix cache
