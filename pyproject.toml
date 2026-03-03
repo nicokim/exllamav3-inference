@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=75.0", "torch>=2.6.0"]
+requires = ["setuptools>=75.0", "torch>=2.6.0", "ninja"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -24,8 +24,11 @@ dependencies = [
     "tokenizers>=0.22.0",
     "numpy>=2.4.0",
     "safetensors>=0.7.0",
-    "typing_extensions>=4.12.0",
+    "huggingface-hub",
 ]
+
+[project.optional-dependencies]
+vision = ["pillow>=10.0"]
 
 [dependency-groups]
 dev = [
@@ -38,9 +41,14 @@ test = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"exllamav3.util" = ["hadamard_data/*.txt"]
+"exllamav3" = ["exllamav3_ext/**/*"]
+
 [tool.ruff]
 target-version = "py313"
 line-length = 100
+extend-exclude = ["src/exllamav3"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

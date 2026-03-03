@@ -304,10 +304,6 @@ class SlimGenerator:
             "cache": self.cache,
             "cache_seqlens": self.pool.cache_seqlens,
         }
-        # Don't pass "positions" here. The attention module defaults to
-        # cache_seqlens when positions is None, which is updated in-place
-        # each iteration via pool.set_cache_seqlen(). Passing a cloned
-        # tensor here would freeze the value and corrupt RoPE positions.
         if self._recurrent_state is not None:
             decode_params["recurrent_states"] = self._recurrent_state
 
@@ -328,6 +324,10 @@ class SlimGenerator:
 
             self.pool.set_cache_seqlen(kv_position)
             self.pool.set_input_id(token_id)
+
+            # Clear dev_cache so get_for_device() re-copies tensors that
+            # changed in-place (cache_seqlens -> positions -> RoPE).
+            decode_params.pop("dev_cache", None)
 
             # Forward single token
             decode_logits = self.model.forward(input_ids=pool_input_ids, params=decode_params)
@@ -457,7 +457,6 @@ def _patch_transformer_blocks(model: Model) -> bool:
     """
     from exllamav3.modules.transformer import TransformerBlock
     from exllamav3.util.tensor import to2 as _to2
-
     from exllamav3_opt._ext import fused_rmsnorm_residual as _fused_kern
 
     # Set per-instance flag: can this block's mlp_norm be fused?
@@ -495,7 +494,7 @@ def _patch_transformer_blocks(model: Model) -> bool:
                 y = self.attn_post_norm.forward(y, params)
 
             # Fused path: x += y; y = (w + bias) * rmsnorm(x)
-            if self._can_fuse_norm and x.dtype == torch.half:
+            if getattr(self, "_can_fuse_norm", False) and x.dtype == torch.half:
                 dim = x.shape[-1]
                 _fused_kern(
                     x.view(-1, dim),
@@ -510,7 +509,7 @@ def _patch_transformer_blocks(model: Model) -> bool:
                 x += y
 
         if self.mlp:
-            _fused = self.attn and self._can_fuse_norm and x.dtype == torch.half
+            _fused = self.attn and getattr(self, "_can_fuse_norm", False) and x.dtype == torch.half
             if not _fused:
                 if self.mlp_norm:
                     y = self.mlp_norm.forward(x, params, out_dtype=torch.half)
