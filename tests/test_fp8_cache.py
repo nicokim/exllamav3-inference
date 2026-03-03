@@ -76,8 +76,10 @@ class TestFP8CacheKernels:
         k_error = (k_original.float() - k_restored.float()).abs().max().item()
         v_error = (v_original.float() - v_restored.float()).abs().max().item()
 
-        assert k_error < 0.05, f"K round-trip error too large: {k_error}"
-        assert v_error < 0.05, f"V round-trip error too large: {v_error}"
+        # FP8 E4M3FN has ~3 mantissa bits; max abs error scales with input magnitude.
+        # For randn inputs (std=1), values up to ~3 are common, giving ~0.15 max error.
+        assert k_error < 0.2, f"K round-trip error too large: {k_error}"
+        assert v_error < 0.2, f"V round-trip error too large: {v_error}"
 
     def test_zero_values(self, device):
         """FP8 handles zero values correctly."""

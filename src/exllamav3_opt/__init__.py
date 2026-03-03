@@ -23,6 +23,7 @@ def __getattr__(name: str):
     if name in _lazy:
         module_path, attr = _lazy[name]
         import importlib
+
         module = importlib.import_module(module_path)
         return getattr(module, attr)
 

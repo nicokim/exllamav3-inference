@@ -30,8 +30,9 @@ jobs:
         run: |
           uv run --no-project python -c "
           import ast, pathlib
-          src = pathlib.Path('src/exllamav3_opt')
-          for f in sorted(src.glob('*.py')):
-              ast.parse(f.read_text())
-              print(f'  {f.name}: syntax OK')
+          for pkg in ['exllamav3_opt', 'exllamav3']:
+              src = pathlib.Path('src') / pkg
+              for f in sorted(src.rglob('*.py')):
+                  ast.parse(f.read_text())
+              print(f'  {pkg}: {len(list(src.rglob(chr(42)+\".py\")))} files, syntax OK')
           "

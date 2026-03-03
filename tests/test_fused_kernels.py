@@ -36,7 +36,7 @@ class TestFusedRMSNormResidual:
         # Fused kernel
         x_fused = x.clone()
         y_fused = torch.empty_like(x_fused)
-        fused_rmsnorm_residual(x_fused, attn_out, weight, y_fused, epsilon)
+        fused_rmsnorm_residual(x_fused, attn_out, weight, y_fused, epsilon, 0.0)
 
         # x should be modified in-place (residual add)
         x_expected = x + attn_out

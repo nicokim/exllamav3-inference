@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 *.so
+*.pyd
 *.egg-info/
 dist/
 build/
@@ -9,4 +10,6 @@ build/
 .pytest_cache/
 .claude/
 .venv/
+torch_extensions/
 test_with_model.py
+test_kohai_vl.py

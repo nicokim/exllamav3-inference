@@ -12,6 +12,7 @@ Requires compiled CUDA kernels (fp8_cache_kernels.cu).
 from __future__ import annotations
 
 import torch
+
 from exllamav3.cache.cache import CacheLayer
 
 PAGE_SIZE = 256  # Must match exllamav3.constants.PAGE_SIZE
@@ -102,9 +103,14 @@ class CacheLayer_fp8(CacheLayer):
         k_scratch, v_scratch = _get_fp8_scratch(self.device, self.fp16_shape)
 
         dequant_fp8_cache_paged(
-            self.qk, self.sk, k_scratch,
-            self.qv, self.sv, v_scratch,
-            cache_seqlens, block_table,
+            self.qk,
+            self.sk,
+            k_scratch,
+            self.qv,
+            self.sv,
+            v_scratch,
+            cache_seqlens,
+            block_table,
             PAGE_SIZE,
         )
 
@@ -122,9 +128,14 @@ class CacheLayer_fp8(CacheLayer):
         from exllamav3_opt._ext import quant_fp8_cache_paged
 
         quant_fp8_cache_paged(
-            k, self.qk, self.sk,
-            v, self.qv, self.sv,
-            cache_seqlens, block_table,
+            k,
+            self.qk,
+            self.sk,
+            v,
+            self.qv,
+            self.sv,
+            cache_seqlens,
+            block_table,
             length,
         )
 
@@ -149,17 +160,12 @@ class CacheLayer_fp8(CacheLayer):
         """Total GPU memory used by this layer in bytes."""
         if self.qk is None:
             return 0
-        return (
-            self.qk.nbytes + self.qv.nbytes +
-            self.sk.nbytes + self.sv.nbytes
-        )
+        return self.qk.nbytes + self.qv.nbytes + self.sk.nbytes + self.sv.nbytes
 
     def overhead_size(self) -> int:
         """Extra memory needed for dequantization scratch buffers."""
         # Two FP16 tensors of full shape
-        per_tensor = (
-            self.num_pages * PAGE_SIZE * self.num_kv_heads * self.head_dim * 2
-        )
+        per_tensor = self.num_pages * PAGE_SIZE * self.num_kv_heads * self.head_dim * 2
         return per_tensor * 2
 
     def get_kv_alloc_placeholder(self):

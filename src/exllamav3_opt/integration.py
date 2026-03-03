@@ -90,7 +90,6 @@ class OptimizedLLM:
     def load(self, model_path: str, enable_prefix_cache: bool = True) -> None:
         """Load ExLlamaV3 model, tokenizer, cache, and SlimGenerator."""
         from exllamav3 import Cache, Config, Model, Tokenizer
-
         from exllamav3_opt.generator import SlimGenerator
         from exllamav3_opt.prefix_cache import PrefixCache
 
@@ -138,7 +137,7 @@ class OptimizedLLM:
             self._vision_model.load(progressbar=True)
             logger.info("Vision model loaded")
         except Exception:
-            logger.debug("No vision component found, vision features disabled")
+            logger.debug("No vision component found, vision features disabled", exc_info=True)
             self._vision_model = None
 
         self._loaded = True
@@ -181,9 +180,7 @@ class OptimizedLLM:
         """
         if self._tokenizer is None:
             raise RuntimeError("Model not loaded")
-        return self._tokenizer.hf_chat_template(
-            messages, add_generation_prompt=True
-        )
+        return self._tokenizer.hf_chat_template(messages, add_generation_prompt=True)
 
     # ------------------------------------------------------------------
     # Sync internals
