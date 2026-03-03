@@ -20,7 +20,6 @@ def main():
         sys.exit(1)
 
     from exllamav3 import Cache, Config, Model, Tokenizer
-
     from exllamav3_opt.generator import SlimGenerator
     from exllamav3_opt.prefix_cache import PrefixCache
 
