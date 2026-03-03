@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/nicokim/exllamav3-inference/compare/v0.3.5...v0.4.0) (2026-03-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* ExLlamaV3 is now vendorized — no external install needed. A single `pip install` compiles both CUDA extensions (exllamav3_ext + exllamav3_opt_ext).
+
+### Features
+
+* vendorize exllamav3 runtime and fix stale RoPE positions ([#19](https://github.com/nicokim/exllamav3-inference/issues/19)) ([fe50bb7](https://github.com/nicokim/exllamav3-inference/commit/fe50bb7bb69d22d2baa6f5f8d9f4717951c4f3a6))
+
 ## [0.3.5](https://github.com/nicokim/exllamav3-inference/compare/v0.3.4...v0.3.5) (2026-03-02)
 
 
